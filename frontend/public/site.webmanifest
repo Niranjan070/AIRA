@@ -1,0 +1,16 @@
+{
+  "name": "AIRA - Adaptive Insights Reliable Actions",
+  "short_name": "AIRA",
+  "description": "AI-powered decision making platform for strategic business intelligence",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#0f3460",
+  "icons": [
+    {
+      "src": "/Screenshot 2025-09-02 102251.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

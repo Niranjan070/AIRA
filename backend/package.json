@@ -1,0 +1,26 @@
+{
+  "name": "four-pillars-ai-backend-gemini",
+  "version": "1.0.0",
+  "description": "Four Pillars AI Backend with Gemini API - Node.js + Express",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "ai",
+    "business-intelligence",
+    "gemini",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
