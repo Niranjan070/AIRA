@@ -23,15 +23,24 @@ const agentColors = {
   'Market Agent': 'text-blue-600 bg-blue-50 border-blue-200',
 };
 
+const analysisTypes = [
+  { value: 'comprehensive', label: 'Comprehensive (All 4 Agents)' },
+  { value: 'financial', label: 'Financial Analysis' },
+  { value: 'risk', label: 'Risk Assessment' },
+  { value: 'compliance', label: 'Compliance Review' },
+  { value: 'market', label: 'Market Intelligence' },
+];
+
 export function AnalysisWorkspace() {
   const [scenario, setScenario] = useState('');
+  const [analysisFocus, setAnalysisFocus] = useState('comprehensive');
   const { data, loading, error, analyzeScenario, clearError } = useAnalysis();
 
   const handleAnalyze = async () => {
     if (!scenario.trim()) return;
     
     try {
-      await analyzeScenario(scenario.trim(), 'comprehensive');
+      await analyzeScenario(scenario.trim(), analysisFocus);
     } catch (error) {
       // Error is handled by the hook
     }
@@ -65,6 +74,24 @@ export function AnalysisWorkspace() {
               className="glass-input min-h-[120px] resize-none"
               disabled={loading}
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              Analysis Type:
+            </label>
+            <select
+              value={analysisFocus}
+              onChange={(e) => setAnalysisFocus(e.target.value)}
+              disabled={loading}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50"
+            >
+              {analysisTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
           </div>
           
           <div className="flex gap-3">

@@ -32,7 +32,7 @@ MODEL_CONFIG = {
         "display_name": "Phi-3.5 Mini Instruct",
         "params": "3.8B",
         "vram_estimate": "~2.1 GB (4-bit)",
-        "max_new_tokens": 1024,
+        "max_new_tokens": 512,
         "temperature": 0.7,
         "top_p": 0.9,
     },
@@ -41,7 +41,7 @@ MODEL_CONFIG = {
         "display_name": "Qwen 2.5 3B Instruct",
         "params": "3B",
         "vram_estimate": "~1.8 GB (4-bit)",
-        "max_new_tokens": 1024,
+        "max_new_tokens": 512,
         "temperature": 0.7,
         "top_p": 0.9,
     },
@@ -50,7 +50,7 @@ MODEL_CONFIG = {
         "display_name": "Phi-3.5 Mini Instruct (Compliance)",
         "params": "3.8B",
         "vram_estimate": "~2.4 GB (4-bit)",
-        "max_new_tokens": 1024,
+        "max_new_tokens": 512,
         "temperature": 0.6,
         "top_p": 0.9,
     },
@@ -59,7 +59,7 @@ MODEL_CONFIG = {
         "display_name": "SmolLM2 1.7B Instruct",
         "params": "1.7B",
         "vram_estimate": "~1.0 GB (4-bit)",
-        "max_new_tokens": 1024,
+        "max_new_tokens": 512,
         "temperature": 0.7,
         "top_p": 0.9,
     },
@@ -193,6 +193,10 @@ def generate_text(agent: str, prompt: str) -> dict:
     tokens_generated = len(generated_tokens)
 
     logger.info(f"[{agent}] Generated {tokens_generated} tokens in {elapsed:.1f}s ({tokens_generated/elapsed:.1f} tok/s)")
+
+    # Free KV cache memory after generation
+    gc.collect()
+    torch.cuda.empty_cache()
 
     return {
         "text": text,

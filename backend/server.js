@@ -258,12 +258,18 @@ ${scenario}
 
 Provide your analysis:`;
     
-    // Call local model server
+    // Call local model server (10 min timeout — model loading + inference can be slow)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 600000);
+
     const response = await fetch(`${MODEL_SERVER_URL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent: agentType, prompt }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
