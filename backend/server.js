@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import dataLoader from './dataLoader.js';
@@ -10,6 +9,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+const MODEL_SERVER_URL = process.env.MODEL_SERVER_URL || 'http://localhost:8001';
 
 // Middleware
 app.use(cors({
@@ -17,10 +17,6 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
 
 // Agent prompt templates
 const AGENT_PROMPTS = {
@@ -189,41 +185,46 @@ CONFIDENCE_SCORE: 0.XX`
 const AGENT_METADATA = {
   finance: {
     name: 'Finance Agent',
-    model: 'Gemini 1.5 Pro',
+    model: 'Phi-3.5 Mini Instruct (3.8B, 4-bit)',
+    model_id: 'microsoft/Phi-3.5-mini-instruct',
     description: 'Financial analysis and investment strategy',
-    duration: '10-20 seconds',
-    device: 'Cloud API',
+    duration: '15-25 seconds',
+    device: 'GPU (CUDA)',
     capabilities: ['Financial Modeling', 'Revenue Projections', 'ROI Analysis', 'Budget Planning']
   },
   risk: {
     name: 'Risk Agent',
-    model: 'Gemini 1.5 Pro',
+    model: 'Qwen 2.5 3B Instruct (3B, 4-bit)',
+    model_id: 'Qwen/Qwen2.5-3B-Instruct',
     description: 'Risk assessment and mitigation strategies',
     duration: '10-20 seconds',
-    device: 'Cloud API',
+    device: 'GPU (CUDA)',
     capabilities: ['Risk Scoring', 'Threat Analysis', 'Mitigation Planning', 'Impact Assessment']
   },
   compliance: {
     name: 'Compliance Agent',
-    model: 'Gemini 1.5 Pro',
+    model: 'Saul 7B Instruct v1 (7B, 4-bit)',
+    model_id: 'Equall/Saul-7B-Instruct-v1',
     description: 'Legal and regulatory compliance analysis',
-    duration: '10-20 seconds',
-    device: 'Cloud API',
+    duration: '20-35 seconds',
+    device: 'GPU (CUDA)',
     capabilities: ['Regulatory Analysis', 'Legal Compliance', 'Privacy Assessment', 'License Requirements']
   },
   market: {
     name: 'Market Agent',
-    model: 'Gemini 1.5 Pro',
+    model: 'SmolLM2 1.7B Instruct (1.7B, 4-bit)',
+    model_id: 'HuggingFaceTB/SmolLM2-1.7B-Instruct',
     description: 'Market intelligence and competitive analysis',
-    duration: '10-20 seconds',
-    device: 'Cloud API',
+    duration: '10-15 seconds',
+    device: 'GPU (CUDA)',
     capabilities: ['Market Sizing', 'Competitor Analysis', 'Trend Identification', 'Strategy Recommendations']
   }
 };
 
-// Helper function to call Gemini API with agent-specific prompt and dataset context
-async function callGeminiAgent(agentType, scenario) {
+// Helper function to call local model server with agent-specific prompt and dataset context
+async function callLocalAgent(agentType, scenario) {
   const startTime = Date.now();
+  const metadata = AGENT_METADATA[agentType];
   
   try {
     // Get relevant dataset context for this agent
@@ -257,9 +258,20 @@ ${scenario}
 
 Provide your analysis:`;
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const analysis = response.text();
+    // Call local model server
+    const response = await fetch(`${MODEL_SERVER_URL}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: agentType, prompt }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Model server returned ${response.status}`);
+    }
+    
+    const result = await response.json();
+    const analysis = result.text;
     
     // Extract confidence score from AI response
     let confidence = 0.85; // Default fallback
@@ -276,22 +288,25 @@ Provide your analysis:`;
     
     return {
       agent: agentType.charAt(0).toUpperCase() + agentType.slice(1),
-      model: 'Gemini 1.5 Pro',
+      model: metadata.model,
+      model_id: metadata.model_id,
       analysis: analysis,
       confidence: confidence,
       execution_time: executionTime,
-      device: 'Cloud API',
+      device: 'GPU (CUDA)',
+      tokens_generated: result.tokens_generated,
+      tokens_per_second: result.tokens_per_second,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
     console.error(`Error calling ${agentType} agent:`, error);
     return {
       agent: agentType.charAt(0).toUpperCase() + agentType.slice(1),
-      model: 'Gemini 1.5 Pro',
+      model: metadata.model,
       analysis: `Error: ${error.message}`,
       confidence: 0,
       execution_time: (Date.now() - startTime) / 1000,
-      device: 'Cloud API',
+      device: 'GPU (CUDA)',
       error: error.message
     };
   }
@@ -304,12 +319,12 @@ app.get('/', (req, res) => {
   const datasetSummary = dataLoader.getDatasetSummary();
   
   res.json({
-    message: '🚀 Four Pillars AI - Gemini API Backend with TATA Datasets',
+    message: '🚀 Four Pillars AI - Multi-Model Backend with Real Datasets',
     status: 'operational',
-    version: '2.0.0',
-    framework: 'Node.js + Express + Gemini API + Real Datasets',
+    version: '3.0.0',
+    framework: 'Node.js + Express + Local GPU Models + Real Datasets',
     agents: ['Finance', 'Risk', 'Compliance', 'Market'],
-    models: ['Gemini 1.5 Pro'],
+    models: Object.values(AGENT_METADATA).map(a => a.model),
     datasets: datasetSummary,
     endpoints: ['/analyze', '/status', '/health', '/examples', '/analyze/types', '/datasets'],
     documentation: 'API endpoints available for business analysis with real TATA data'
@@ -321,12 +336,12 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    framework: 'Gemini API',
-    version: '1.0.0',
-    orchestration: 'Node.js Express Server',
+    framework: 'Local Multi-Model GPU',
+    version: '3.0.0',
+    orchestration: 'Node.js Express + Python Model Server',
     agents: ['Finance', 'Risk', 'Compliance', 'Market'],
-    api_status: process.env.GEMINI_API_KEY ? 'configured' : 'missing_api_key',
-    system_optimization: 'Cloud-based AI Processing'
+    model_server: MODEL_SERVER_URL,
+    system_optimization: 'Sequential GPU Inference (4-bit Quantized)'
   });
 });
 
@@ -334,8 +349,8 @@ app.get('/health', (req, res) => {
 app.get('/status', (req, res) => {
   res.json({
     initialized: true,
-    framework: 'Gemini API',
-    version: '1.0.0',
+    framework: 'Local Multi-Model GPU',
+    version: '3.0.0',
     agents: [
       { id: 'finance', ...AGENT_METADATA.finance, status: 'ready' },
       { id: 'risk', ...AGENT_METADATA.risk, status: 'ready' },
@@ -344,17 +359,17 @@ app.get('/status', (req, res) => {
     ],
     crew_status: 'All agents operational',
     device_allocation: {
-      finance: 'Cloud API',
-      risk: 'Cloud API',
-      compliance: 'Cloud API',
-      market: 'Cloud API'
+      finance: 'GPU (CUDA) - Phi-3.5 Mini',
+      risk: 'GPU (CUDA) - Qwen 2.5 3B',
+      compliance: 'GPU (CUDA) - Saul 7B',
+      market: 'GPU (CUDA) - SmolLM2 1.7B'
     },
     system_info: {
-      platform: 'Node.js',
-      ai_provider: 'Google Gemini',
-      model: 'Gemini 1.5 Pro',
-      memory: 'Cloud-based',
-      gpu: 'Not applicable (Cloud API)'
+      platform: 'Node.js + Python Model Server',
+      ai_provider: 'Local HuggingFace Models',
+      models: Object.fromEntries(Object.entries(AGENT_METADATA).map(([k, v]) => [k, v.model])),
+      inference: 'Sequential GPU (4-bit Quantized)',
+      model_server: MODEL_SERVER_URL
     }
   });
 });
@@ -409,9 +424,13 @@ app.post('/analyze', async (req, res) => {
     return res.status(400).json({ error: 'Scenario is required' });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ 
-      error: 'Gemini API key not configured. Please set GEMINI_API_KEY in .env file' 
+  // Check model server health
+  try {
+    const healthRes = await fetch(`${MODEL_SERVER_URL}/health`);
+    if (!healthRes.ok) throw new Error('Model server not responding');
+  } catch (e) {
+    return res.status(503).json({ 
+      error: 'Model server is not running. Start it with: python backend/model_server/server.py' 
     });
   }
 
@@ -423,30 +442,29 @@ app.post('/analyze', async (req, res) => {
     let results = {};
     let agents_utilized = [];
 
-    // Run analysis based on focus
+    // Run analysis based on focus (sequential — one model on GPU at a time)
     if (analysis_focus === 'comprehensive') {
-      const [finance, risk, compliance, market] = await Promise.all([
-        callGeminiAgent('finance', scenario),
-        callGeminiAgent('risk', scenario),
-        callGeminiAgent('compliance', scenario),
-        callGeminiAgent('market', scenario)
-      ]);
+      // Sequential: load each model, generate, unload, next
+      const finance = await callLocalAgent('finance', scenario);
+      const risk = await callLocalAgent('risk', scenario);
+      const compliance = await callLocalAgent('compliance', scenario);
+      const market = await callLocalAgent('market', scenario);
       results = { finance, risk, compliance, market };
       agents_utilized = ['Finance', 'Risk', 'Compliance', 'Market'];
     } else if (analysis_focus === 'financial') {
-      const finance = await callGeminiAgent('finance', scenario);
+      const finance = await callLocalAgent('finance', scenario);
       results = { finance };
       agents_utilized = ['Finance'];
     } else if (analysis_focus === 'risk') {
-      const risk = await callGeminiAgent('risk', scenario);
+      const risk = await callLocalAgent('risk', scenario);
       results = { risk };
       agents_utilized = ['Risk'];
     } else if (analysis_focus === 'compliance') {
-      const compliance = await callGeminiAgent('compliance', scenario);
+      const compliance = await callLocalAgent('compliance', scenario);
       results = { compliance };
       agents_utilized = ['Compliance'];
     } else if (analysis_focus === 'market') {
-      const market = await callGeminiAgent('market', scenario);
+      const market = await callLocalAgent('market', scenario);
       results = { market };
       agents_utilized = ['Market'];
     } else {
@@ -464,19 +482,19 @@ app.post('/analyze', async (req, res) => {
       analysis_focus,
       timestamp: new Date().toISOString(),
       execution_time_seconds: executionTime,
-      framework: 'Gemini API',
+      framework: 'Local Multi-Model GPU',
       crew_result: JSON.stringify(results, null, 2),
       agents_utilized,
       device_allocation: {
-        finance: 'Cloud API',
-        risk: 'Cloud API',
-        compliance: 'Cloud API',
-        market: 'Cloud API'
+        finance: 'GPU (CUDA) - Phi-3.5 Mini',
+        risk: 'GPU (CUDA) - Qwen 2.5 3B',
+        compliance: 'GPU (CUDA) - Saul 7B',
+        market: 'GPU (CUDA) - SmolLM2 1.7B'
       },
       system_info: {
-        platform: 'Node.js',
-        ai_provider: 'Google Gemini',
-        model: 'Gemini 1.5 Pro'
+        platform: 'Node.js + Python Model Server',
+        ai_provider: 'Local HuggingFace Models',
+        inference: 'Sequential GPU (4-bit Quantized)'
       },
       performance_metrics: {
         total_execution_time: executionTime,
@@ -504,18 +522,18 @@ app.get('/analyze/types', (req, res) => {
       comprehensive: {
         description: 'Complete Four Pillars analysis with all agents',
         agents: ['finance', 'risk', 'compliance', 'market'],
-        duration: '30-60 seconds',
+        duration: '60-120 seconds (sequential GPU)',
         use_case: 'Full business evaluation and strategy',
         output: 'Complete business assessment with all aspects covered',
-        device_allocation: 'Cloud API (All Agents)'
+        device_allocation: 'GPU (CUDA) - 4 Models Sequential'
       },
       financial: {
         description: 'Financial analysis and investment strategy',
         agents: ['finance'],
-        duration: '10-20 seconds',
+        duration: '15-25 seconds',
         use_case: 'Funding, revenue projections, financial planning',
         output: 'Detailed financial analysis and recommendations',
-        device_allocation: 'Cloud API'
+        device_allocation: 'GPU (CUDA) - Phi-3.5 Mini'
       },
       risk: {
         description: 'Risk assessment and mitigation strategies',
@@ -523,30 +541,30 @@ app.get('/analyze/types', (req, res) => {
         duration: '10-20 seconds',
         use_case: 'Risk management and contingency planning',
         output: 'Comprehensive risk analysis with mitigation plans',
-        device_allocation: 'Cloud API'
+        device_allocation: 'GPU (CUDA) - Qwen 2.5 3B'
       },
       compliance: {
         description: 'Legal and regulatory compliance analysis',
         agents: ['compliance'],
-        duration: '10-20 seconds',
+        duration: '20-35 seconds',
         use_case: 'Legal requirements and governance frameworks',
         output: 'Compliance roadmap and legal considerations',
-        device_allocation: 'Cloud API'
+        device_allocation: 'GPU (CUDA) - Saul 7B'
       },
       market: {
         description: 'Market intelligence and competitive analysis',
         agents: ['market'],
-        duration: '10-20 seconds',
+        duration: '10-15 seconds',
         use_case: 'Market strategy, competition, and positioning',
         output: 'Market analysis with strategic recommendations',
-        device_allocation: 'Cloud API'
+        device_allocation: 'GPU (CUDA) - SmolLM2 1.7B'
       }
     },
     framework_info: {
-      orchestration: 'Node.js Express Server',
-      process: 'Parallel processing with Gemini API',
-      optimization: 'Cloud-based AI (Google Gemini)',
-      version: 'Gemini 1.5 Pro'
+      orchestration: 'Node.js Express + Python FastAPI Model Server',
+      process: 'Sequential GPU inference (one model loaded at a time)',
+      optimization: '4-bit NF4 quantization via bitsandbytes',
+      models: Object.fromEntries(Object.entries(AGENT_METADATA).map(([k, v]) => [k, v.model]))
     }
   });
 });
@@ -595,7 +613,7 @@ app.get('/examples', (req, res) => {
       comprehensive: 'Best for complete business evaluation and investor presentations',
       specific_focus: 'Use targeted analysis for specific decision-making needs',
       iterative: 'Run multiple focused analyses to deep-dive into specific areas',
-      api_optimization: 'All agents use Gemini API for consistent high-quality analysis'
+      api_optimization: 'Each agent uses a specialized HuggingFace model for domain-specific analysis'
     }
   });
 });
@@ -603,39 +621,39 @@ app.get('/examples', (req, res) => {
 // System info endpoint
 app.get('/system/info', (req, res) => {
   res.json({
-    framework: 'Gemini API',
-    orchestration: 'Node.js Express Server',
-    architecture: 'Cloud-based Multi-Agent System',
+    framework: 'Local Multi-Model GPU',
+    orchestration: 'Node.js Express + Python FastAPI Model Server',
+    architecture: 'Multi-Model Sequential GPU Inference',
     optimization: {
-      api_provider: 'Google Gemini',
-      model: 'Gemini 1.5 Pro',
-      parallel_processing: true,
+      models: Object.fromEntries(Object.entries(AGENT_METADATA).map(([k, v]) => [k, { model: v.model, model_id: v.model_id }])),
+      quantization: '4-bit NF4 (bitsandbytes)',
+      parallel_processing: false,
+      sequential_gpu: true,
       memory_enabled: false,
       planning_enabled: false,
-      cloud_based: true
+      cloud_based: false
     },
     capabilities: {
-      parallel_agent_coordination: true,
+      multi_model_agents: true,
       structured_workflows: true,
       role_based_agents: true,
-      cloud_ai: true,
-      scalable: true,
-      cost_effective: true
+      local_gpu_inference: true,
+      domain_specialized_models: true
     },
     deployment: {
       backend: 'Node.js + Express',
-      ai_framework: 'Google Generative AI',
-      model: 'Gemini 1.5 Pro',
-      datasets: 'TATA Real Datasets (Financial, Legal, Market, Social)',
+      model_server: 'Python FastAPI + HuggingFace Transformers',
+      inference: 'PyTorch + CUDA + bitsandbytes',
+      datasets: 'Real Datasets (Financial, Legal, Market, Social)',
       data_integration: 'Context-embedded prompts',
       node_version: process.version,
       platform: process.platform
     },
     performance: {
-      comprehensive_analysis: '30-60 seconds',
-      single_agent_analysis: '10-20 seconds',
-      api_acceleration: 'Google Cloud Infrastructure',
-      concurrent_requests: 'Supported'
+      comprehensive_analysis: '60-120 seconds (sequential)',
+      single_agent_analysis: '10-35 seconds',
+      gpu_acceleration: 'NVIDIA CUDA (4-bit quantized)',
+      concurrent_requests: 'Sequential (one model at a time)'
     }
   });
 });
@@ -657,7 +675,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({
         type: 'analysis_started',
         scenario,
-        framework: 'Gemini API',
+        framework: 'Local Multi-Model GPU',
         analysis_focus,
         timestamp: new Date().toISOString()
       }));
@@ -667,16 +685,14 @@ wss.on('connection', (ws) => {
       let agents_utilized = [];
 
       if (analysis_focus === 'comprehensive') {
-        const [finance, risk, compliance, market] = await Promise.all([
-          callGeminiAgent('finance', scenario),
-          callGeminiAgent('risk', scenario),
-          callGeminiAgent('compliance', scenario),
-          callGeminiAgent('market', scenario)
-        ]);
+        const finance = await callLocalAgent('finance', scenario);
+        const risk = await callLocalAgent('risk', scenario);
+        const compliance = await callLocalAgent('compliance', scenario);
+        const market = await callLocalAgent('market', scenario);
         results = { finance, risk, compliance, market };
         agents_utilized = ['Finance', 'Risk', 'Compliance', 'Market'];
       } else {
-        const result = await callGeminiAgent(analysis_focus, scenario);
+        const result = await callLocalAgent(analysis_focus, scenario);
         results = { [analysis_focus]: result };
         agents_utilized = [analysis_focus.charAt(0).toUpperCase() + analysis_focus.slice(1)];
       }
@@ -712,10 +728,13 @@ wss.on('connection', (ws) => {
 
 // Start server
 server.listen(PORT, () => {
-  console.log('\n🚀 Four Pillars AI Backend - Gemini API');
+  console.log('\n🚀 Four Pillars AI Backend - Multi-Model Local GPU');
   console.log(`📡 Server running on http://localhost:${PORT}`);
-  console.log(`🤖 AI Provider: Google Gemini (${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Missing API Key'})`);
-  console.log(`💡 Model: Gemini 1.5 Pro`);
+  console.log(`🤖 Model Server: ${MODEL_SERVER_URL}`);
+  console.log(`💡 Models:`);
+  for (const [agent, meta] of Object.entries(AGENT_METADATA)) {
+    console.log(`   ${agent.padEnd(12)} → ${meta.model}`);
+  }
   console.log(`\n📚 Available Endpoints:`);
   console.log(`   GET  /              - API information`);
   console.log(`   GET  /health        - Health check`);
