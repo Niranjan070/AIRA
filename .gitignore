@@ -1,0 +1,29 @@
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Node.js
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Environment files
+.env
+backend/.env
+
+# HuggingFace model cache (downloaded models)
+*.safetensors
+*.bin
+*.pt
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Build outputs
+frontend/dist/
