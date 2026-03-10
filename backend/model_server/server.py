@@ -5,7 +5,7 @@ Loads 4 specialized HuggingFace models sequentially on GPU for each agent.
 Models:
   - Finance:    microsoft/Phi-3.5-mini-instruct  (3.8B, 4-bit)
   - Risk:       Qwen/Qwen2.5-3B-Instruct         (3B, 4-bit)
-  - Compliance: Equall/Saul-7B-Instruct-v1        (7B, 4-bit)
+  - Compliance: microsoft/Phi-3.5-mini-instruct   (3.8B, 4-bit)
   - Market:     google/gemma-2-2b-it               (2.6B, 4-bit)
 
 Architecture: Sequential model loading — one model in GPU at a time.
@@ -46,10 +46,10 @@ MODEL_CONFIG = {
         "top_p": 0.9,
     },
     "compliance": {
-        "model_id": "Equall/Saul-7B-Instruct-v1",
-        "display_name": "Saul 7B Instruct v1",
-        "params": "7B",
-        "vram_estimate": "~3.8 GB (4-bit)",
+        "model_id": "microsoft/Phi-3.5-mini-instruct",
+        "display_name": "Phi-3.5 Mini Instruct (Compliance)",
+        "params": "3.8B",
+        "vram_estimate": "~2.4 GB (4-bit)",
         "max_new_tokens": 1024,
         "temperature": 0.6,
         "top_p": 0.9,
@@ -105,6 +105,15 @@ def load_model(agent: str):
     if current_agent == agent and current_model is not None:
         logger.info(f"Model for {agent} already loaded, reusing.")
         return
+
+    # Skip reload if the same model_id is already loaded (e.g. finance & compliance both use Phi-3.5)
+    config = MODEL_CONFIG[agent]
+    if current_agent is not None and current_model is not None:
+        current_model_id = MODEL_CONFIG[current_agent]["model_id"]
+        if current_model_id == config["model_id"]:
+            logger.info(f"Same model ({config['model_id']}) already loaded for {current_agent}, reusing for {agent}.")
+            current_agent = agent
+            return
 
     # Unload previous model first
     unload_model()

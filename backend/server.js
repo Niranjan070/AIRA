@@ -203,10 +203,10 @@ const AGENT_METADATA = {
   },
   compliance: {
     name: 'Compliance Agent',
-    model: 'Saul 7B Instruct v1 (7B, 4-bit)',
-    model_id: 'Equall/Saul-7B-Instruct-v1',
+    model: 'Phi-3.5 Mini Instruct (3.8B, 4-bit)',
+    model_id: 'microsoft/Phi-3.5-mini-instruct',
     description: 'Legal and regulatory compliance analysis',
-    duration: '20-35 seconds',
+    duration: '10-20 seconds',
     device: 'GPU (CUDA)',
     capabilities: ['Regulatory Analysis', 'Legal Compliance', 'Privacy Assessment', 'License Requirements']
   },
@@ -361,7 +361,7 @@ app.get('/status', (req, res) => {
     device_allocation: {
       finance: 'GPU (CUDA) - Phi-3.5 Mini',
       risk: 'GPU (CUDA) - Qwen 2.5 3B',
-      compliance: 'GPU (CUDA) - Saul 7B',
+      compliance: 'GPU (CUDA) - Phi-3.5 Mini',
       market: 'GPU (CUDA) - SmolLM2 1.7B'
     },
     system_info: {
@@ -488,7 +488,7 @@ app.post('/analyze', async (req, res) => {
       device_allocation: {
         finance: 'GPU (CUDA) - Phi-3.5 Mini',
         risk: 'GPU (CUDA) - Qwen 2.5 3B',
-        compliance: 'GPU (CUDA) - Saul 7B',
+        compliance: 'GPU (CUDA) - Phi-3.5 Mini',
         market: 'GPU (CUDA) - SmolLM2 1.7B'
       },
       system_info: {
@@ -549,7 +549,7 @@ app.get('/analyze/types', (req, res) => {
         duration: '20-35 seconds',
         use_case: 'Legal requirements and governance frameworks',
         output: 'Compliance roadmap and legal considerations',
-        device_allocation: 'GPU (CUDA) - Saul 7B'
+        device_allocation: 'GPU (CUDA) - Phi-3.5 Mini'
       },
       market: {
         description: 'Market intelligence and competitive analysis',

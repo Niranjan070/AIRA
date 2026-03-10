@@ -55,7 +55,7 @@ Write-Host ""
 Write-Host "🤖 Models:" -ForegroundColor Magenta
 Write-Host "   Finance    → Phi-3.5 Mini Instruct (3.8B)" -ForegroundColor White
 Write-Host "   Risk       → Qwen 2.5 3B Instruct" -ForegroundColor White
-Write-Host "   Compliance → Saul 7B Instruct v1" -ForegroundColor White
+Write-Host "   Compliance → Phi-3.5 Mini Instruct (3.8B)" -ForegroundColor White
 Write-Host "   Market     → SmolLM2 1.7B Instruct" -ForegroundColor White
 Write-Host ""
 Write-Host "⏳ Waiting for servers to initialize..." -ForegroundColor Yellow
