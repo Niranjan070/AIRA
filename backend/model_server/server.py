@@ -12,15 +12,22 @@ Architecture: Sequential model loading — one model in GPU at a time.
 """
 
 import gc
+import os
 import time
 import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+# Force CUDA to only see NVIDIA GPU (device 0), ignore AMD iGPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+# Pin all operations to CUDA device 0 (NVIDIA RTX 5050)
+torch.cuda.set_device(0)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("model_server")
@@ -218,7 +225,8 @@ def generate_text(agent: str, prompt: str) -> dict:
 async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("AIRA Multi-Model Server Starting")
-    logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+    logger.info(f"CUDA devices visible: {torch.cuda.device_count()}")
+    logger.info(f"Active GPU: cuda:0 → {torch.cuda.get_device_name(0)}")
     logger.info(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     logger.info(f"PyTorch: {torch.__version__}")
     logger.info("Models configured:")
