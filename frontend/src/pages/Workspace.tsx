@@ -144,11 +144,13 @@ export default function Workspace() {
     });
   };
 
-  // Calculate overall confidence based on agent performance
+  // Calculate overall confidence based on agent performance (only agents with data)
   const getOverallConfidence = (): number => {
-    const agentPerformances = agents.map(agent => agent.performanceScore || 0);
-    return agentPerformances.length > 0 
-      ? Math.round(agentPerformances.reduce((sum, perf) => sum + perf, 0) / agentPerformances.length)
+    const activePerformances = agents
+      .filter(agent => (agent.performanceScore || 0) > 0)
+      .map(agent => agent.performanceScore || 0);
+    return activePerformances.length > 0 
+      ? Math.round(activePerformances.reduce((sum, perf) => sum + perf, 0) / activePerformances.length)
       : 0;
   };
 
@@ -284,7 +286,7 @@ export default function Workspace() {
           <Tabs defaultValue="analysis" className="w-full h-full">
             <TabsList className="glass mb-4 p-1 rounded-xl">
               <TabsTrigger value="analysis" className="text-black data-[state=active]:accent-button rounded-lg px-4 py-2 transition-all duration-300">
-                Historical Analysis
+                Analysis Results
               </TabsTrigger>
               <TabsTrigger value="insights" className="text-black data-[state=active]:accent-button rounded-lg px-4 py-2 transition-all duration-300">
                 Collaborative Insights
@@ -295,11 +297,92 @@ export default function Workspace() {
             </TabsList>
 
             <TabsContent value="analysis" className="h-full">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 h-full">
-                {analysisData.map((analysis) => (
-                  <DetailedAgentCard key={analysis.id} analysis={analysis} />
-                ))}
-              </div>
+              {agents.filter(agent => agent.status === 'active' || latestAnalysisData[agent.id]).length === 0 ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center text-gray-500">
+                    <span className="text-4xl block mb-3">🔍</span>
+                    <p className="text-lg font-medium">No analysis results yet</p>
+                    <p className="text-sm">Enter a scenario above and click "Run Analysis" to get started</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {agents.filter(agent => latestAnalysisData[agent.id]).map((agent) => {
+                    const data = latestAnalysisData[agent.id];
+                    const agentConfig = {
+                      finance: { title: 'Financial Analysis', icon: '💰', border: 'border-green-300 bg-green-50/50' },
+                      risk: { title: 'Risk Assessment', icon: '🛡️', border: 'border-red-300 bg-red-50/50' },
+                      compliance: { title: 'Compliance Review', icon: '⚖️', border: 'border-blue-300 bg-blue-50/50' },
+                      market: { title: 'Market Intelligence', icon: '📈', border: 'border-purple-300 bg-purple-50/50' },
+                    }[agent.id] || { title: agent.name, icon: '📊', border: 'border-gray-300 bg-gray-50/50' };
+
+                    return (
+                      <Card key={agent.id} className={`glass-card interactive-border ${agentConfig.border}`}>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-black text-lg flex items-center gap-2">
+                            <span className="text-2xl">{agentConfig.icon}</span>
+                            {agentConfig.title}
+                            <Badge className={`ml-auto ${(agent.performanceScore || 0) >= 80 ? 'bg-green-100 text-green-800' : (agent.performanceScore || 0) >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                              {agent.performanceScore || 0}%
+                            </Badge>
+                          </CardTitle>
+                          {data.model && (
+                            <p className="text-xs text-gray-400 mt-1">Model: {data.model} | {data.execution_time ? `${data.execution_time.toFixed(1)}s` : ''}</p>
+                          )}
+                        </CardHeader>
+                        <CardContent>
+                          <div className="max-h-[400px] overflow-y-auto pr-2 space-y-3">
+                            {data.analysis ? (
+                              data.analysis.split(/(?=##)/).map((section: string, idx: number) => {
+                                if (!section.trim() || section.includes('CONFIDENCE_SCORE')) return null;
+                                const headerMatch = section.match(/^##\s*(.+?)(?:\n|$)/);
+                                if (headerMatch) {
+                                  const header = headerMatch[1].trim();
+                                  const content = section.substring(headerMatch[0].length).trim();
+                                  if (content.includes('CONFIDENCE_SCORE') && !content.replace(/CONFIDENCE_SCORE.*/, '').trim()) return null;
+                                  return (
+                                    <div key={idx} className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                                      <h5 className="font-semibold text-gray-900 mb-2 text-sm">{header}</h5>
+                                      <div className="text-gray-700 text-sm space-y-1 leading-relaxed">
+                                        {content.split('\n').map((line: string, lineIdx: number) => {
+                                          const trimmed = line.trim();
+                                          if (!trimmed || trimmed.includes('CONFIDENCE_SCORE')) return null;
+                                          if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) {
+                                            return (
+                                              <div key={lineIdx} className="flex items-start gap-2 ml-1">
+                                                <span className="text-blue-500 mt-1 text-xs flex-shrink-0">●</span>
+                                                <span className="flex-1">{trimmed.replace(/^[•\-*]\s*/, '').replace(/\*\*/g, '')}</span>
+                                              </div>
+                                            );
+                                          }
+                                          if (/^\d+\./.test(trimmed)) {
+                                            return <div key={lineIdx} className="ml-1 font-medium">{trimmed.replace(/\*\*/g, '')}</div>;
+                                          }
+                                          if (trimmed.startsWith('**') || trimmed.includes('**')) {
+                                            return <div key={lineIdx} className="font-medium text-gray-800 mt-1">{trimmed.replace(/\*\*/g, '')}</div>;
+                                          }
+                                          return <div key={lineIdx} className="text-gray-600">{trimmed}</div>;
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                // Plain text without header
+                                if (!section.includes('CONFIDENCE_SCORE')) {
+                                  return <div key={idx} className="text-gray-700 text-sm bg-gray-50 rounded p-2">{section.trim()}</div>;
+                                }
+                                return null;
+                              })
+                            ) : (
+                              <p className="text-gray-500 text-center py-4">Analysis completed</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="insights" className="space-y-8">

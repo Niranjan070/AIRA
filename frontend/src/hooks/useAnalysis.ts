@@ -20,9 +20,19 @@ export function useAnalysis() {
   const analyzeScenario = useCallback(async (scenario: string, analysisFocus?: string) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
-    // Set all agents to analyzing status
-    const agentIds = ['finance', 'risk', 'compliance', 'market'];
-    agentIds.forEach(agentId => {
+    const allAgentIds = ['finance', 'risk', 'compliance', 'market'];
+    // Map analysis focus to the agents that will run
+    const focusToAgents: Record<string, string[]> = {
+      comprehensive: allAgentIds,
+      financial: ['finance'],
+      risk: ['risk'],
+      compliance: ['compliance'],
+      market: ['market'],
+    };
+    const activeAgentIds = focusToAgents[analysisFocus || 'comprehensive'] || allAgentIds;
+    
+    // Only set relevant agents to analyzing, leave others unchanged
+    activeAgentIds.forEach(agentId => {
       updateAgentStatus(agentId, 'analyzing');
     });
     
@@ -152,8 +162,8 @@ export function useAnalysis() {
       console.log('🎯 Analysis hook state updated successfully');
       return result;
     } catch (error) {
-      // Reset agents to inactive on error
-      agentIds.forEach(agentId => {
+      // Reset only the agents that were set to analyzing
+      activeAgentIds.forEach(agentId => {
         updateAgentStatus(agentId, 'inactive');
       });
       
