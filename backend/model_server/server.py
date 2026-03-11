@@ -13,6 +13,7 @@ Architecture: Sequential model loading — one model in GPU at a time.
 
 import gc
 import time
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -78,6 +79,9 @@ QUANTIZATION_CONFIG = BitsAndBytesConfig(
 current_agent: str | None = None
 current_model = None
 current_tokenizer = None
+
+# Serialize all generate requests — only one model on GPU at a time
+_inference_lock = asyncio.Lock()
 
 
 # ── Model Management ─────────────────────────────────────────────────────────
@@ -272,7 +276,7 @@ def health():
 
 
 @app.post("/generate")
-def generate(req: GenerateRequest):
+async def generate(req: GenerateRequest):
     agent = req.agent.lower()
     if agent not in MODEL_CONFIG:
         raise HTTPException(
@@ -280,21 +284,25 @@ def generate(req: GenerateRequest):
             detail=f"Unknown agent '{agent}'. Must be one of: {list(MODEL_CONFIG.keys())}",
         )
 
-    try:
-        result = generate_text(agent, req.prompt)
-        return {
-            "agent": agent,
-            **result,
-        }
-    except torch.cuda.OutOfMemoryError:
-        unload_model()
-        raise HTTPException(
-            status_code=503,
-            detail="GPU out of memory. Model unloaded. Try again.",
-        )
-    except Exception as e:
-        logger.error(f"Generation failed for {agent}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    # Acquire lock — only one generation at a time (sequential GPU access)
+    async with _inference_lock:
+        try:
+            # Run blocking GPU inference in thread pool so the lock works correctly
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, generate_text, agent, req.prompt)
+            return {
+                "agent": agent,
+                **result,
+            }
+        except torch.cuda.OutOfMemoryError:
+            unload_model()
+            raise HTTPException(
+                status_code=503,
+                detail="GPU out of memory. Model unloaded. Try again.",
+            )
+        except Exception as e:
+            logger.error(f"Generation failed for {agent}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/unload")

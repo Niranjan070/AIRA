@@ -3,9 +3,17 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { Agent } from 'undici';
 import dataLoader from './dataLoader.js';
 
 dotenv.config();
+
+// Custom undici agent with extended timeouts for slow GPU inference
+const slowAgent = new Agent({
+  headersTimeout: 900_000,  // 15 minutes
+  bodyTimeout: 900_000,     // 15 minutes
+  connectTimeout: 30_000,   // 30 seconds
+});
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -258,15 +266,17 @@ ${scenario}
 
 Provide your analysis:`;
     
-    // Call local model server (10 min timeout — model loading + inference can be slow)
+    // Call local model server with extended timeout
+    // Uses custom undici agent to avoid default 300s headers timeout
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 600000);
+    const timeout = setTimeout(() => controller.abort(), 900000); // 15 min hard limit
 
     const response = await fetch(`${MODEL_SERVER_URL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent: agentType, prompt }),
       signal: controller.signal,
+      dispatcher: slowAgent,
     });
 
     clearTimeout(timeout);

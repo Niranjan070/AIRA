@@ -131,23 +131,23 @@ class DataLoader {
 FINANCIAL DATASETS AVAILABLE:
 
 1. AGGREGATE EXPENDITURE DATA (Sample):
-${JSON.stringify(data.aggregate_expenditure.slice(0, 5), null, 2)}
+${JSON.stringify(data.aggregate_expenditure.slice(0, 2), null, 2)}
 Total records: ${data.aggregate_expenditure.length}
 
 2. CAPITAL EXPENDITURE DATA (Sample):
-${JSON.stringify(data.capital_expenditure.slice(0, 5), null, 2)}
+${JSON.stringify(data.capital_expenditure.slice(0, 2), null, 2)}
 Total records: ${data.capital_expenditure.length}
 
 3. FISCAL DEFICITS DATA (Sample):
-${JSON.stringify(data.fiscal_deficits.slice(0, 5), null, 2)}
+${JSON.stringify(data.fiscal_deficits.slice(0, 2), null, 2)}
 Total records: ${data.fiscal_deficits.length}
 
 4. GSDP DATA (Sample):
-${JSON.stringify(data.gsdp.slice(0, 5), null, 2)}
+${JSON.stringify(data.gsdp.slice(0, 2), null, 2)}
 Total records: ${data.gsdp.length}
 
 5. TAX REVENUES DATA (Sample):
-${JSON.stringify(data.tax_revenues.slice(0, 5), null, 2)}
+${JSON.stringify(data.tax_revenues.slice(0, 2), null, 2)}
 Total records: ${data.tax_revenues.length}
 
 Use this real financial data from government sources in your analysis.
@@ -166,7 +166,7 @@ Use this real financial data from government sources in your analysis.
 LEGAL DATASET AVAILABLE:
 
 INDIAN LEGAL Q&A DATABASE (Sample):
-${JSON.stringify(data.slice(0, 3), null, 2)}
+${JSON.stringify(data.slice(0, 2), null, 2)}
 Total records: ${data.length}
 
 Use this legal precedent data for Indian regulatory and compliance analysis.
@@ -181,7 +181,7 @@ Use this legal precedent data for Indian regulatory and compliance analysis.
 MARKET DATASETS AVAILABLE:
 
 TATA GLOBAL STOCK DATA (NSE, Sample):
-${JSON.stringify(data.tata_global.slice(0, 10), null, 2)}
+${JSON.stringify(data.tata_global.slice(0, 5), null, 2)}
 Total records: ${data.tata_global.length}
 
 Use this real TATA Global market data for market analysis and trends.
