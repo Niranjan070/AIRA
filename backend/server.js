@@ -198,8 +198,8 @@ CONFIDENCE_SCORE: 0.XX`
 const AGENT_METADATA = {
   finance: {
     name: 'Finance Agent',
-    model: 'Phi-3.5 Mini Instruct (3.8B, 4-bit)',
-    model_id: 'microsoft/Phi-3.5-mini-instruct',
+    model: 'Qwen 2.5 3B Instruct (3B, 4-bit)',
+    model_id: 'Qwen/Qwen2.5-3B-Instruct',
     description: 'Financial analysis and investment strategy',
     duration: '15-25 seconds',
     device: 'GPU (CUDA)',
@@ -216,8 +216,8 @@ const AGENT_METADATA = {
   },
   compliance: {
     name: 'Compliance Agent',
-    model: 'Phi-3.5 Mini Instruct (3.8B, 4-bit)',
-    model_id: 'microsoft/Phi-3.5-mini-instruct',
+    model: 'Qwen 2.5 3B Instruct (3B, 4-bit)',
+    model_id: 'Qwen/Qwen2.5-3B-Instruct',
     description: 'Legal and regulatory compliance analysis',
     duration: '10-20 seconds',
     device: 'GPU (CUDA)',
@@ -372,24 +372,37 @@ ${scenario}
 Provide your analysis:`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
-            topP: 0.9,
+    let response;
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY,
           },
-        }),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 1024,
+              topP: 0.9,
+            },
+          }),
+        }
+      );
+
+      if (response.status === 429 && attempt < maxRetries) {
+        const retryMatch = (await response.clone().text()).match(/"retryDelay":\s*"(\d+)s"/);
+        const waitSec = retryMatch ? Math.min(parseInt(retryMatch[1], 10), 60) : 10;
+        console.log(`⏳ Rate limited for ${agentType}, retrying in ${waitSec}s (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        continue;
       }
-    );
+      break;
+    }
 
     if (!response.ok) {
       const errBody = await response.text();

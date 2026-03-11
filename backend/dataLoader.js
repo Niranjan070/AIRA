@@ -123,34 +123,45 @@ class DataLoader {
     return data;
   }
 
-  // Format financial data for prompt
+  // Helper: extract compact summary from a state-year financial dataset
+  _summarizeFinancialDataset(rows, datasetName) {
+    if (!rows || rows.length === 0) return `${datasetName}: No data available`;
+    
+    // Get year columns (all keys except 'State')
+    const yearCols = Object.keys(rows[0]).filter(k => k !== 'State');
+    const latestYear = yearCols[yearCols.length - 1];
+    const prevYear = yearCols.length > 1 ? yearCols[yearCols.length - 2] : null;
+    
+    // Get top 5 states by latest year value
+    const parsed = rows
+      .map(r => ({ state: (r.State || '').trim(), value: parseFloat(String(r[latestYear]).replace(/,/g, '')) }))
+      .filter(r => !isNaN(r.value) && r.value > 0)
+      .sort((a, b) => b.value - a.value);
+    
+    const top5 = parsed.slice(0, 5);
+    const total = parsed.reduce((s, r) => s + r.value, 0);
+    
+    let summary = `${datasetName} (${rows.length} states, ${yearCols[0]} to ${latestYear}):\n`;
+    summary += `  National Total (${latestYear}): ₹${Math.round(total).toLocaleString('en-IN')} crore\n`;
+    summary += `  Top 5 states: ${top5.map(s => `${s.state}: ₹${Math.round(s.value).toLocaleString('en-IN')}`).join(', ')}\n`;
+    
+    return summary;
+  }
+
+  // Format financial data for prompt — compact summary instead of raw JSON
   formatFinancialDataForPrompt() {
     const data = this.loadFinancialData();
     
     return `
-FINANCIAL DATASETS AVAILABLE:
+INDIAN GOVERNMENT FINANCIAL DATA (Source: Reserve Bank of India):
 
-1. AGGREGATE EXPENDITURE DATA (Sample):
-${JSON.stringify(data.aggregate_expenditure.slice(0, 2), null, 2)}
-Total records: ${data.aggregate_expenditure.length}
+${this._summarizeFinancialDataset(data.aggregate_expenditure, 'Aggregate Expenditure')}
+${this._summarizeFinancialDataset(data.capital_expenditure, 'Capital Expenditure')}
+${this._summarizeFinancialDataset(data.fiscal_deficits, 'Gross Fiscal Deficits')}
+${this._summarizeFinancialDataset(data.gsdp, 'Nominal GSDP')}
+${this._summarizeFinancialDataset(data.tax_revenues, 'Own Tax Revenues')}
 
-2. CAPITAL EXPENDITURE DATA (Sample):
-${JSON.stringify(data.capital_expenditure.slice(0, 2), null, 2)}
-Total records: ${data.capital_expenditure.length}
-
-3. FISCAL DEFICITS DATA (Sample):
-${JSON.stringify(data.fiscal_deficits.slice(0, 2), null, 2)}
-Total records: ${data.fiscal_deficits.length}
-
-4. GSDP DATA (Sample):
-${JSON.stringify(data.gsdp.slice(0, 2), null, 2)}
-Total records: ${data.gsdp.length}
-
-5. TAX REVENUES DATA (Sample):
-${JSON.stringify(data.tax_revenues.slice(0, 2), null, 2)}
-Total records: ${data.tax_revenues.length}
-
-Use this real financial data from government sources in your analysis.
+Use these Indian government financial statistics in your analysis.
 `;
   }
 
@@ -162,12 +173,21 @@ Use this real financial data from government sources in your analysis.
       return '\nNo legal data available.';
     }
 
-    return `
-LEGAL DATASET AVAILABLE:
+    // Send only 2 compact samples
+    const samples = data.slice(0, 2).map(item => {
+      // Truncate long text fields to keep prompt compact
+      const compact = {};
+      for (const [key, value] of Object.entries(item)) {
+        compact[key] = typeof value === 'string' && value.length > 150 
+          ? value.substring(0, 150) + '...' 
+          : value;
+      }
+      return compact;
+    });
 
-INDIAN LEGAL Q&A DATABASE (Sample):
-${JSON.stringify(data.slice(0, 2), null, 2)}
-Total records: ${data.length}
+    return `
+INDIAN LEGAL Q&A DATABASE (${data.length} legal precedents, Source: IndicLegal):
+${JSON.stringify(samples, null, 2)}
 
 Use this legal precedent data for Indian regulatory and compliance analysis.
 `;
@@ -176,28 +196,28 @@ Use this legal precedent data for Indian regulatory and compliance analysis.
   // Format market data for prompt
   formatMarketDataForPrompt() {
     const data = this.loadMarketData();
+    const rows = data.tata_global;
+    
+    // Send compact summary instead of full rows
+    const latest = rows.slice(0, 3);
+    const oldest = rows.slice(-1);
     
     return `
-MARKET DATASETS AVAILABLE:
+TATA GLOBAL STOCK DATA (NSE, ${rows.length} trading days):
+Recent prices: ${JSON.stringify(latest)}
+Historical: ${JSON.stringify(oldest)}
 
-TATA GLOBAL STOCK DATA (NSE, Sample):
-${JSON.stringify(data.tata_global.slice(0, 5), null, 2)}
-Total records: ${data.tata_global.length}
-
-Use this real TATA Global market data for market analysis and trends.
+Use this TATA Global market data for market analysis and trends.
 `;
   }
 
-  // Format social data for prompt
+  // Format social data for prompt — compact summary
   formatSocialDataForPrompt() {
     const data = this.loadSocialData();
     
     return `
-SOCIAL DATASETS AVAILABLE:
-
-SOCIAL SECTOR EXPENDITURE DATA (Sample):
-${JSON.stringify(data.social_expenditure.slice(0, 5), null, 2)}
-Total records: ${data.social_expenditure.length}
+SOCIAL SECTOR EXPENDITURE (${data.social_expenditure.length} states, Source: RBI/Government):
+${this._summarizeFinancialDataset(data.social_expenditure, 'Social Sector Expenditure')}
 
 Use this social expenditure data for impact and CSR analysis.
 `;
