@@ -4,15 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DetailedAgentCard } from '@/components/ui/DetailedAgentCard';
 import { useAgents } from '@/contexts/AgentContext';
+import { useAnalysis } from '@/hooks/useAnalysis';
 import { DetailedAgentAnalysis } from '@/types';
+
+const analysisTypes = [
+  { value: 'comprehensive', label: 'Comprehensive (All Agents)' },
+  { value: 'financial', label: 'Financial Analysis' },
+  { value: 'risk', label: 'Risk Assessment' },
+  { value: 'compliance', label: 'Compliance Review' },
+  { value: 'market', label: 'Market Intelligence' },
+];
 
 export default function Workspace() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [scenario, setScenario] = useState('');
+  const [analysisFocus, setAnalysisFocus] = useState('comprehensive');
   const { agents, latestAnalysisData } = useAgents();
+  const { analyzeScenario, loading, error } = useAnalysis();
   const navigate = useNavigate();
 
   // Load persisted search term on mount
@@ -38,6 +51,15 @@ export default function Workspace() {
 
   const handleNavigateToDashboard = () => {
     navigate('/dashboard');
+  };
+
+  const handleAnalyze = async () => {
+    if (!scenario.trim()) return;
+    try {
+      await analyzeScenario(scenario.trim(), analysisFocus);
+    } catch (err) {
+      console.error('Analysis failed:', err);
+    }
   };
 
   // Convert agent context data to detailed analysis format
@@ -209,9 +231,52 @@ export default function Workspace() {
             <p className="text-xs text-gray-600">
               {activeAgentsCount > 0 
                 ? `Real-time analysis powered by Four Pillars AI agents - ${activeAgentsCount} agents active`
-                : 'Use "New Strategic Decision" from the Dashboard to run AI analysis and see results here'
+                : 'Enter a business scenario below and run AI analysis'
               }
             </p>
+          </div>
+
+          {/* Scenario Input Form */}
+          <div className="mb-3 p-4 glass-card rounded-xl border-2 border-white/20 space-y-3">
+            <Textarea
+              placeholder="Describe your business scenario for AI analysis... (e.g., 'We are considering expanding into Southeast Asian markets with a $5M investment in cloud infrastructure')"
+              value={scenario}
+              onChange={(e) => setScenario(e.target.value)}
+              className="glass-input min-h-[80px] focus-enhanced text-sm"
+              disabled={loading}
+            />
+            <div className="flex items-center gap-3">
+              <select
+                value={analysisFocus}
+                onChange={(e) => setAnalysisFocus(e.target.value)}
+                className="glass-input rounded-lg px-3 py-2 text-sm border border-white/20 bg-white/50"
+                disabled={loading}
+              >
+                {analysisTypes.map((type) => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+              <Button
+                onClick={handleAnalyze}
+                disabled={loading || !scenario.trim()}
+                className="bg-green-500 hover:bg-green-600 text-white font-medium px-6 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <span className="animate-spin text-lg">⏳</span>
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">🚀</span>
+                    Run Analysis
+                  </>
+                )}
+              </Button>
+            </div>
+            {error && (
+              <p className="text-red-500 text-sm">{error}</p>
+            )}
           </div>
         </div>
 
