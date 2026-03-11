@@ -6,7 +6,7 @@ Models:
   - Finance:    microsoft/Phi-3.5-mini-instruct  (3.8B, 4-bit)
   - Risk:       Qwen/Qwen2.5-3B-Instruct         (3B, 4-bit)
   - Compliance: microsoft/Phi-3.5-mini-instruct   (3.8B, 4-bit)
-  - Market:     google/gemma-2-2b-it               (2.6B, 4-bit)
+  - Market:     HuggingFaceTB/SmolLM2-1.7B-Instruct (1.7B, 4-bit)
 
 Architecture: Sequential model loading — one model in GPU at a time.
 """
@@ -20,6 +20,10 @@ from contextlib import asynccontextmanager
 
 # Force CUDA to only see NVIDIA GPU (device 0), ignore AMD iGPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+# Offline mode — models are already cached, skip all HuggingFace network calls
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
