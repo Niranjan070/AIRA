@@ -450,10 +450,10 @@ app.post('/analyze', async (req, res) => {
 
     // Run analysis based on focus (sequential — one model on GPU at a time)
     if (analysis_focus === 'comprehensive') {
-      // Sequential: load each model, generate, unload, next
+      // Sequential: finance → compliance (both use Phi-3.5, reused) → risk → market
       const finance = await callLocalAgent('finance', scenario);
+      const compliance = await callLocalAgent('compliance', scenario); // reuses Phi-3.5 (no reload)
       const risk = await callLocalAgent('risk', scenario);
-      const compliance = await callLocalAgent('compliance', scenario);
       const market = await callLocalAgent('market', scenario);
       results = { finance, risk, compliance, market };
       agents_utilized = ['Finance', 'Risk', 'Compliance', 'Market'];
@@ -692,8 +692,8 @@ wss.on('connection', (ws) => {
 
       if (analysis_focus === 'comprehensive') {
         const finance = await callLocalAgent('finance', scenario);
+        const compliance = await callLocalAgent('compliance', scenario); // reuses Phi-3.5
         const risk = await callLocalAgent('risk', scenario);
-        const compliance = await callLocalAgent('compliance', scenario);
         const market = await callLocalAgent('market', scenario);
         results = { finance, risk, compliance, market };
         agents_utilized = ['Finance', 'Risk', 'Compliance', 'Market'];
