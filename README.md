@@ -52,7 +52,7 @@ AIRA runs four specialised AI agents (Finance, Risk, Compliance, Market) sequent
 │  • Loads one HuggingFace model at a time onto GPU       │
 │  • 4-bit NF4 quantisation via BitsAndBytes              │
 │  • Auto-unloads model after generation to free VRAM     │
-│  • Sequential: Finance→Compliance→Risk→Market           │
+│  • Sequential: Finance→Risk→Compliance→Market            │
 └───────────────────────┬─────────────────────────────────┘
                         │
               ┌─────────▼─────────┐
@@ -67,12 +67,12 @@ AIRA runs four specialised AI agents (Finance, Risk, Compliance, Market) sequent
 
 | Agent | Model | Parameters | VRAM (4-bit) | Speed |
 |-------|-------|-----------|-------------|-------|
-| Finance | `microsoft/Phi-3.5-mini-instruct` | 3.8B | ~2.1 GB | ~9 tok/s |
-| Compliance | `microsoft/Phi-3.5-mini-instruct` | 3.8B | reused ♻️ | ~9 tok/s |
-| Risk | `Qwen/Qwen2.5-3B-Instruct` | 3B | ~1.8 GB | ~15 tok/s |
+| Finance | `Qwen/Qwen2.5-3B-Instruct` | 3B | ~1.8 GB | ~15 tok/s |
+| Risk | `Qwen/Qwen2.5-3B-Instruct` | 3B | reused ♻️ | ~15 tok/s |
+| Compliance | `Qwen/Qwen2.5-3B-Instruct` | 3B | reused ♻️ | ~15 tok/s |
 | Market | `HuggingFaceTB/SmolLM2-1.7B-Instruct` | 1.7B | ~1.0 GB | ~17 tok/s |
 
-> Finance and Compliance share the same model — on comprehensive runs, Phi-3.5 is loaded once and reused, saving ~20 seconds.
+> Finance, Risk, and Compliance share the same model — on comprehensive runs, Qwen2.5-3B is loaded once and reused, saving significant time.
 
 **Total comprehensive analysis time:** ~2.5–3 minutes on RTX 5050 (8 GB VRAM)
 
@@ -137,7 +137,7 @@ pip install -r backend/model_server/requirements.txt
 pip install transformers==4.57.6 huggingface-hub==0.36.2
 ```
 
-> `transformers==4.57.6` is required — newer versions have a `DynamicCache` incompatibility with Phi-3.5 on some setups.
+> `transformers==4.57.6` is pinned for compatibility.
 
 ### 5. Install Node.js backend dependencies
 
@@ -312,7 +312,7 @@ Run AI analysis on a business scenario.
   "agents_utilized": ["Finance", "Compliance", "Risk", "Market"],
   "finance": {
     "agent": "Finance",
-    "model": "Phi-3.5 Mini Instruct (3.8B, 4-bit)",
+    "model": "Qwen 2.5 3B Instruct (Finance)",
     "analysis": "## 💰 FINANCIAL VIABILITY\n• ...",
     "confidence": 0.82,
     "execution_time": 44.1,
@@ -364,12 +364,12 @@ pip uninstall torch -y
 pip install torch --index-url https://download.pytorch.org/whl/cu128
 ```
 
-**`DynamicCache` / `seen_tokens` error:**
+**`DynamicCache` / `seen_tokens` error (if using Phi-3.5):**
 ```bash
 pip install transformers==4.57.6 huggingface-hub==0.36.2
 ```
 
-**Phi-3.5 OOM (out of memory):**
+**OOM (out of memory):**
 - Reduce `max_new_tokens` in `backend/model_server/server.py` from `512` to `384`
 - Close other GPU applications before running
 
@@ -408,8 +408,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## Acknowledgements
 
 - [HuggingFace](https://huggingface.co) for model hosting and Transformers library
-- [Microsoft](https://huggingface.co/microsoft/Phi-3.5-mini-instruct) for Phi-3.5-mini-instruct
-- [Qwen Team / Alibaba](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) for Qwen2.5-3B
+- [Qwen Team / Alibaba](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct) for Qwen2.5-3B-Instruct
 - [HuggingFace Research](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct) for SmolLM2
 - [BitsAndBytes](https://github.com/TimDettmers/bitsandbytes) for 4-bit quantisation
 - Reserve Bank of India and NSE for public financial datasets

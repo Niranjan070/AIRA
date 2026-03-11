@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DetailedAgentCard } from '@/components/ui/DetailedAgentCard';
 import { useAgents, StoredDecision } from '@/contexts/AgentContext';
 import { useAnalysis } from '@/hooks/useAnalysis';
 
@@ -113,7 +112,7 @@ export default function Workspace() {
     const activePerformances = agents
       .filter(agent => (agent.performanceScore || 0) > 0)
       .map(agent => agent.performanceScore || 0);
-    return activePerformances.length > 0 
+    return activePerformances.length > 0
       ? Math.round(activePerformances.reduce((sum, perf) => sum + perf, 0) / activePerformances.length)
       : 0;
   };
@@ -160,7 +159,7 @@ export default function Workspace() {
     const agentIds = Object.keys(displayAgentData);
     const synergies: { agents: string[]; message: string; type: 'synergy' | 'tension' | 'warning' }[] = [];
     const fc = getAgentConfidence('finance'), rc = getAgentConfidence('risk'),
-          cc = getAgentConfidence('compliance'), mc = getAgentConfidence('market');
+      cc = getAgentConfidence('compliance'), mc = getAgentConfidence('market');
 
     if (agentIds.includes('finance') && agentIds.includes('market')) {
       if (fc >= 70 && mc >= 70)
@@ -207,7 +206,7 @@ export default function Workspace() {
       {/* Left Panel - Decision History */}
       <div className="w-72 glass border-r-2 border-white/20 p-4 overflow-auto">
         <h3 className="font-semibold text-black mb-4 text-lg">Decision History</h3>
-        
+
         <div className="space-y-3 mb-4">
           <Input
             placeholder="Search decisions..."
@@ -298,7 +297,7 @@ export default function Workspace() {
                   Back to Live
                 </Button>
               )}
-              <Button 
+              <Button
                 onClick={handleNavigateToDashboard}
                 className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
               >
@@ -315,7 +314,7 @@ export default function Workspace() {
             <p className="text-xs text-gray-600">
               {selectedDecision
                 ? `Viewing saved analysis for: "${selectedDecision.scenario.substring(0, 100)}${selectedDecision.scenario.length > 100 ? '...' : ''}"`
-                : activeAgentsCount > 0 
+                : activeAgentsCount > 0
                   ? `Real-time analysis powered by Four Pillars AI agents - ${activeAgentsCount} agents active`
                   : 'Enter a business scenario below and run AI analysis'
               }
@@ -564,11 +563,10 @@ export default function Workspace() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                           {crossInsights.map((insight, i) => (
-                            <div key={i} className={`flex items-start gap-3 p-4 rounded-lg border ${
-                              insight.type === 'synergy' ? 'bg-green-50 border-green-200' :
-                              insight.type === 'tension' ? 'bg-orange-50 border-orange-200' :
-                              'bg-amber-50 border-amber-200'
-                            }`}>
+                            <div key={i} className={`flex items-start gap-3 p-4 rounded-lg border ${insight.type === 'synergy' ? 'bg-green-50 border-green-200' :
+                                insight.type === 'tension' ? 'bg-orange-50 border-orange-200' :
+                                  'bg-amber-50 border-amber-200'
+                              }`}>
                               <span className="text-xl mt-0.5 flex-shrink-0">
                                 {insight.type === 'synergy' ? '🟢' : insight.type === 'tension' ? '🟠' : '🟡'}
                               </span>
@@ -579,11 +577,10 @@ export default function Workspace() {
                                       {agentMeta[a]?.icon} {agentMeta[a]?.label}
                                     </Badge>
                                   ))}
-                                  <Badge className={`text-xs ${
-                                    insight.type === 'synergy' ? 'bg-green-100 text-green-800' :
-                                    insight.type === 'tension' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-amber-100 text-amber-800'
-                                  }`}>
+                                  <Badge className={`text-xs ${insight.type === 'synergy' ? 'bg-green-100 text-green-800' :
+                                      insight.type === 'tension' ? 'bg-orange-100 text-orange-800' :
+                                        'bg-amber-100 text-amber-800'
+                                    }`}>
                                     {insight.type === 'synergy' ? 'Aligned' : insight.type === 'tension' ? 'Tension' : 'Watch'}
                                   </Badge>
                                 </div>
@@ -655,7 +652,7 @@ export default function Workspace() {
                           if (!rec) return <p className="text-gray-500">Awaiting analysis data...</p>;
                           const actions: { priority: string; text: string; color: string }[] = [];
                           const fc = getAgentConfidence('finance'), rc = getAgentConfidence('risk'),
-                                cc = getAgentConfidence('compliance'), mc = getAgentConfidence('market');
+                            cc = getAgentConfidence('compliance'), mc = getAgentConfidence('market');
 
                           // High priority actions based on weak areas
                           if (rc > 0 && rc < 70) actions.push({ priority: 'HIGH', text: 'Develop detailed risk mitigation plan — risk assessment confidence is below threshold', color: 'bg-red-100 text-red-800 border-red-200' });
@@ -741,7 +738,7 @@ export default function Workspace() {
                     <CardContent className="space-y-4">
                       {(() => {
                         const fc = getAgentConfidence('finance'), rc = getAgentConfidence('risk'),
-                              cc = getAgentConfidence('compliance'), mc = getAgentConfidence('market');
+                          cc = getAgentConfidence('compliance'), mc = getAgentConfidence('market');
                         const pairs: { a: string; b: string; aScore: number; bScore: number; borderColor: string }[] = [
                           { a: 'finance', b: 'risk', aScore: fc, bScore: rc, borderColor: 'border-l-green-500' },
                           { a: 'finance', b: 'compliance', aScore: fc, bScore: cc, borderColor: 'border-l-emerald-500' },
@@ -974,9 +971,9 @@ export default function Workspace() {
                               <p className={`text-4xl font-black ${overallPct >= 75 ? 'text-green-700' : overallPct >= 60 ? 'text-yellow-700' : 'text-red-700'}`}>{overallPct}%</p>
                               <p className="text-sm mt-1 text-gray-600">
                                 {overallPct >= 80 ? 'All dimensions strongly support proceeding with this initiative.' :
-                                 overallPct >= 70 ? 'Most dimensions are favorable. Address the weakest area before full commitment.' :
-                                 overallPct >= 60 ? 'Mixed signals across dimensions. A phased or pilot approach is recommended.' :
-                                 'Significant challenges identified. Further analysis and risk mitigation needed.'}
+                                  overallPct >= 70 ? 'Most dimensions are favorable. Address the weakest area before full commitment.' :
+                                    overallPct >= 60 ? 'Mixed signals across dimensions. A phased or pilot approach is recommended.' :
+                                      'Significant challenges identified. Further analysis and risk mitigation needed.'}
                               </p>
                             </div>
                           </div>
