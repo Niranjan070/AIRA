@@ -36,6 +36,9 @@ torch.cuda.set_device(0)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("model_server")
 
+# Suppress harmless flash-attention warning from Phi-3.5
+logging.getLogger("transformers.models.phi3.modeling_phi3").setLevel(logging.ERROR)
+
 # ── Model Configuration ──────────────────────────────────────────────────────
 
 MODEL_CONFIG = {
@@ -44,7 +47,7 @@ MODEL_CONFIG = {
         "display_name": "Phi-3.5 Mini Instruct",
         "params": "3.8B",
         "vram_estimate": "~2.1 GB (4-bit)",
-        "max_new_tokens": 512,
+        "max_new_tokens": 256,
         "temperature": 0.7,
         "top_p": 0.9,
     },
@@ -53,7 +56,7 @@ MODEL_CONFIG = {
         "display_name": "Qwen 2.5 3B Instruct",
         "params": "3B",
         "vram_estimate": "~1.8 GB (4-bit)",
-        "max_new_tokens": 512,
+        "max_new_tokens": 256,
         "temperature": 0.7,
         "top_p": 0.9,
     },
@@ -62,7 +65,7 @@ MODEL_CONFIG = {
         "display_name": "Phi-3.5 Mini Instruct (Compliance)",
         "params": "3.8B",
         "vram_estimate": "~2.4 GB (4-bit)",
-        "max_new_tokens": 512,
+        "max_new_tokens": 256,
         "temperature": 0.6,
         "top_p": 0.9,
     },
@@ -71,7 +74,7 @@ MODEL_CONFIG = {
         "display_name": "SmolLM2 1.7B Instruct",
         "params": "1.7B",
         "vram_estimate": "~1.0 GB (4-bit)",
-        "max_new_tokens": 512,
+        "max_new_tokens": 256,
         "temperature": 0.7,
         "top_p": 0.9,
     },
@@ -145,6 +148,7 @@ def load_model(agent: str):
         quantization_config=QUANTIZATION_CONFIG,
         device_map="auto",
         trust_remote_code=True,
+        max_memory={0: "5GiB"},  # Reserve 3GB for KV cache + generation
     )
 
     elapsed = time.time() - start
@@ -170,9 +174,9 @@ def generate_text(agent: str, prompt: str) -> dict:
         text_input = current_tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
-        inputs = current_tokenizer(text_input, return_tensors="pt", truncation=True, max_length=4096)
+        inputs = current_tokenizer(text_input, return_tensors="pt", truncation=True, max_length=2048)
     else:
-        inputs = current_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
+        inputs = current_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
 
     inputs = {k: v.to(current_model.device) for k, v in inputs.items()}
 

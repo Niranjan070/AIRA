@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { KpiCard } from '@/components/ui/KpiCard';
@@ -14,12 +15,12 @@ import { initialKpiMetrics } from '@/data/mockData';
 
 export function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [allDecisions, setAllDecisions] = useState<Decision[]>([]);
   const [currentKpiMetrics, setCurrentKpiMetrics] = useState<KpiMetric[]>(initialKpiMetrics);
   const [totalAnalysisCount, setTotalAnalysisCount] = useState(0);
   const [totalConfidence, setTotalConfidence] = useState(0);
   
-  const { agents, completedAnalyses } = useAgents();
+  const { agents, completedAnalyses, decisions, addDecision, setSelectedDecisionId } = useAgents();
+  const navigate = useNavigate();
 
   // Load persisted data on component mount - after AgentContext has loaded
   useEffect(() => {
@@ -33,7 +34,7 @@ export function Dashboard() {
   // Save data to localStorage whenever it changes
   useEffect(() => {
     saveDataToLocalStorage();
-  }, [allDecisions, totalAnalysisCount, totalConfidence]);
+  }, [totalAnalysisCount, totalConfidence]);
 
   // Update KPI metrics when real analyses are completed (primary source of truth)
   useEffect(() => {
@@ -92,7 +93,6 @@ export function Dashboard() {
   // Save data to localStorage
   const saveDataToLocalStorage = () => {
     try {
-      localStorage.setItem('aira_dashboard_decisions', JSON.stringify(allDecisions));
       localStorage.setItem('aira_dashboard_analysis_count', totalAnalysisCount.toString());
       localStorage.setItem('aira_dashboard_total_confidence', totalConfidence.toString());
     } catch (error) {
@@ -168,11 +168,9 @@ export function Dashboard() {
   // Clear all persisted data (for testing/debugging)
   const clearAllPersistedData = () => {
     try {
-      localStorage.removeItem('aira_dashboard_decisions');
       localStorage.removeItem('aira_dashboard_analysis_count');
       localStorage.removeItem('aira_dashboard_total_confidence');
       
-      setAllDecisions([]);
       setTotalAnalysisCount(0);
       setTotalConfidence(0);
       setCurrentKpiMetrics(initialKpiMetrics);
@@ -190,10 +188,13 @@ export function Dashboard() {
   }, []);
 
   // Legacy function to update KPI metrics when local decisions are added (still needed for decision creation)
-  const updateKpiMetrics = (_decisions: Decision[]) => {
-    // This will trigger updateKpiMetricsFromRealData through the useEffect
-    // when analyses complete, so we just update real metrics directly
+  const updateKpiMetrics = () => {
     updateKpiMetricsFromRealData();
+  };
+
+  const handleDecisionClick = (decisionId: string) => {
+    setSelectedDecisionId(decisionId);
+    navigate('/workspace');
   };
 
   const handleCreateDecision = (newDecision: {
@@ -206,44 +207,53 @@ export function Dashboard() {
   }) => {
     console.log('🎯 Creating new decision:', newDecision);
     
-    const decision: Decision = {
-      id: String(allDecisions.length + 1),
+    // Extract per-agent results from analysisResult
+    const agentResults: Record<string, any> = {};
+    const agentKeys = ['finance', 'risk', 'compliance', 'market'];
+    if (newDecision.analysisResult) {
+      agentKeys.forEach(key => {
+        if (newDecision.analysisResult[key]) {
+          agentResults[key] = newDecision.analysisResult[key];
+        }
+      });
+    }
+
+    const confidence = newDecision.analysisResult ? 
+      Math.round(newDecision.analysisResult.summary?.confidence || newDecision.analysisResult.overall_confidence || 85) : 
+      Math.floor(Math.random() * 20) + 75;
+
+    const storedDecision = {
+      id: `decision-${Date.now()}`,
       title: newDecision.title,
+      description: newDecision.description,
+      scenario: `${newDecision.title}: ${newDecision.description}`,
       priority: newDecision.priority,
-      status: 'active',
-      confidence: newDecision.analysisResult ? 
-        Math.round(newDecision.analysisResult.summary?.confidence || newDecision.analysisResult.overall_confidence || 85) : 
-        Math.floor(Math.random() * 20) + 75, // Fallback to random if no analysis
-      createdAt: new Date().toISOString(), // Use ISO string for better date handling
-      agents: newDecision.analysisResult?.agents || [], // Use real analysis data or empty array
+      status: 'active' as const,
+      confidence,
+      createdAt: new Date().toISOString(),
+      analysisFocus: 'comprehensive',
+      analysisResult: newDecision.analysisResult,
+      agentResults,
     };
 
-    console.log('🎯 Created decision object:', decision);
-    
-    const updatedDecisions = [decision, ...allDecisions];
-    console.log('🎯 All decisions after update:', updatedDecisions);
-    console.log('🎯 Total decisions count:', updatedDecisions.length);
-    
-    setAllDecisions(updatedDecisions);
-    updateKpiMetrics(updatedDecisions);
-    
-    // Close modal
+    addDecision(storedDecision);
+    updateKpiMetrics();
     setIsModalOpen(false);
-    
-    // Show success message or redirect to analysis view
-    console.log('✅ New decision created with analysis:', newDecision.analysisResult);
+    console.log('✅ New decision created:', storedDecision.id);
   };
+
+  const allDecisions: Decision[] = decisions.map(d => ({
+    id: d.id,
+    title: d.title,
+    priority: d.priority,
+    status: d.status,
+    confidence: d.confidence,
+    createdAt: d.createdAt,
+    agents: [],
+  }));
 
   const activeDecisions = allDecisions.filter(d => d.status === 'active');
   const completedDecisions = allDecisions.filter(d => d.status === 'completed');
-
-  // Debug logging for decisions
-  console.log('📊 Dashboard state:', {
-    allDecisionsCount: allDecisions.length,
-    activeDecisionsCount: activeDecisions.length,
-    completedDecisionsCount: completedDecisions.length,
-    allDecisions: allDecisions
-  });
 
   return (
     <div className="flex min-h-screen">
@@ -462,7 +472,7 @@ export function Dashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="max-h-80 overflow-y-auto">
-                    <DecisionTable decisions={activeDecisions} />
+                    <DecisionTable decisions={activeDecisions} onDecisionClick={handleDecisionClick} />
                   </CardContent>
                 </Card>
 
@@ -474,7 +484,7 @@ export function Dashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="max-h-80 overflow-y-auto">
-                    <DecisionTable decisions={completedDecisions} />
+                    <DecisionTable decisions={completedDecisions} onDecisionClick={handleDecisionClick} />
                   </CardContent>
                 </Card>
               </motion.div>

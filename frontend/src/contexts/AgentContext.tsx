@@ -19,10 +19,26 @@ export interface AgentAnalysisData {
   [key: string]: any;
 }
 
+export interface StoredDecision {
+  id: string;
+  title: string;
+  description: string;
+  scenario: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'active' | 'completed' | 'pending';
+  confidence: number;
+  createdAt: string;
+  analysisFocus: string;
+  analysisResult: any;
+  agentResults: Record<string, AgentAnalysisData>;
+}
+
 interface AgentContextType {
   agents: AgentStatus[];
   latestAnalysisData: Record<string, AgentAnalysisData>;
   completedAnalyses: any[];
+  decisions: StoredDecision[];
+  selectedDecisionId: string | null;
   updateAgentStatus: (agentId: string, status: 'active' | 'analyzing' | 'inactive') => void;
   updateAgentPerformance: (agentId: string, score: number) => void;
   incrementAgentUsage: (agentId: string) => void;
@@ -30,6 +46,8 @@ interface AgentContextType {
   testAgentUpdates: () => void;
   setAnalysisData: (agentId: string, data: AgentAnalysisData) => void;
   addCompletedAnalysis: (analysis: any) => void;
+  addDecision: (decision: StoredDecision) => void;
+  setSelectedDecisionId: (id: string | null) => void;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
@@ -70,6 +88,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [agents, setAgents] = useState<AgentStatus[]>(initialAgents);
   const [latestAnalysisData, setLatestAnalysisData] = useState<Record<string, AgentAnalysisData>>({});
   const [completedAnalyses, setCompletedAnalyses] = useState<any[]>([]);
+  const [decisions, setDecisions] = useState<StoredDecision[]>([]);
+  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -79,7 +99,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   // Save agent data whenever it changes
   useEffect(() => {
     saveAgentDataToLocalStorage();
-  }, [agents, completedAnalyses, latestAnalysisData]);
+  }, [agents, completedAnalyses, latestAnalysisData, decisions]);
 
   // Load persisted agent data from localStorage
   const loadPersistedAgentData = () => {
@@ -106,6 +126,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         console.log('📊 Loaded latest analysis data from localStorage');
       }
 
+      const savedDecisions = localStorage.getItem('aira_decisions');
+      if (savedDecisions) {
+        const decisionsData = JSON.parse(savedDecisions);
+        setDecisions(decisionsData);
+        console.log(`📊 Loaded ${decisionsData.length} decisions from localStorage`);
+      }
+
       console.log('✅ Agent data restored from localStorage');
     } catch (error) {
       console.warn('⚠️ Failed to load persisted agent data:', error);
@@ -118,6 +145,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('aira_agent_status', JSON.stringify(agents));
       localStorage.setItem('aira_completed_analyses', JSON.stringify(completedAnalyses));
       localStorage.setItem('aira_latest_analysis_data', JSON.stringify(latestAnalysisData));
+      localStorage.setItem('aira_decisions', JSON.stringify(decisions));
     } catch (error) {
       console.warn('⚠️ Failed to save agent data to localStorage:', error);
     }
@@ -167,6 +195,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     setCompletedAnalyses(prev => [analysis, ...prev.slice(0, 99)]);
   };
 
+  const addDecision = (decision: StoredDecision) => {
+    console.log('AgentContext: Adding decision', decision.title);
+    setDecisions(prev => [decision, ...prev.slice(0, 49)]);
+  };
+
   const resetAllAgents = () => {
     setAgents(initialAgents);
     setLatestAnalysisData({});
@@ -180,6 +213,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('aira_dashboard_analysis_count');
       localStorage.removeItem('aira_dashboard_total_confidence');
       localStorage.removeItem('aira_analysis_history');
+      localStorage.removeItem('aira_decisions');
       console.log('🗑️ Cleared all persisted data from localStorage');
     } catch (error) {
       console.warn('⚠️ Failed to clear localStorage:', error);
@@ -202,13 +236,17 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       agents,
       latestAnalysisData,
       completedAnalyses,
+      decisions,
+      selectedDecisionId,
       updateAgentStatus,
       updateAgentPerformance,
       incrementAgentUsage,
       resetAllAgents,
       testAgentUpdates,
       setAnalysisData,
-      addCompletedAnalysis
+      addCompletedAnalysis,
+      addDecision,
+      setSelectedDecisionId
     }}>
       {children}
     </AgentContext.Provider>

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DetailedAgentCard } from '@/components/ui/DetailedAgentCard';
-import { useAgents } from '@/contexts/AgentContext';
+import { useAgents, StoredDecision } from '@/contexts/AgentContext';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { DetailedAgentAnalysis } from '@/types';
 
@@ -24,9 +24,21 @@ export default function Workspace() {
   const [searchTerm, setSearchTerm] = useState('');
   const [scenario, setScenario] = useState('');
   const [analysisFocus, setAnalysisFocus] = useState('comprehensive');
-  const { agents, latestAnalysisData } = useAgents();
+  const { agents, latestAnalysisData, decisions, selectedDecisionId, setSelectedDecisionId, addDecision } = useAgents();
   const { analyzeScenario, loading, error } = useAnalysis();
   const navigate = useNavigate();
+
+  // The currently viewed decision (if any)
+  const selectedDecision = selectedDecisionId ? decisions.find(d => d.id === selectedDecisionId) : null;
+
+  // Data to display: either from a selected decision or from live analysis
+  const displayAgentData = selectedDecision ? selectedDecision.agentResults : latestAnalysisData;
+
+  // Filter decisions by search term
+  const filteredDecisions = decisions.filter(d =>
+    d.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.scenario.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Load persisted search term on mount
   useEffect(() => {
@@ -56,7 +68,42 @@ export default function Workspace() {
   const handleAnalyze = async () => {
     if (!scenario.trim()) return;
     try {
-      await analyzeScenario(scenario.trim(), analysisFocus);
+      // Clear selected decision so we show live results
+      setSelectedDecisionId(null);
+      const result = await analyzeScenario(scenario.trim(), analysisFocus);
+
+      // Auto-create a decision from this analysis
+      if (result) {
+        const agentResults: Record<string, any> = {};
+        const agentKeys = ['finance', 'risk', 'compliance', 'market'];
+        agentKeys.forEach(key => {
+          if (result[key]) agentResults[key] = result[key];
+        });
+
+        // Calculate confidence
+        const confidences = agentKeys
+          .filter(k => result[k]?.confidence)
+          .map(k => result[k].confidence);
+        const avgConfidence = confidences.length > 0
+          ? Math.round((confidences.reduce((s: number, c: number) => s + c, 0) / confidences.length) * 100)
+          : 75;
+
+        const newDecision: StoredDecision = {
+          id: `decision-${Date.now()}`,
+          title: scenario.trim().length > 60 ? scenario.trim().substring(0, 60) + '...' : scenario.trim(),
+          description: scenario.trim(),
+          scenario: scenario.trim(),
+          priority: 'medium',
+          status: 'active',
+          confidence: avgConfidence,
+          createdAt: new Date().toISOString(),
+          analysisFocus,
+          analysisResult: result,
+          agentResults,
+        };
+        addDecision(newDecision);
+        setSelectedDecisionId(newDecision.id);
+      }
     } catch (err) {
       console.error('Analysis failed:', err);
     }
@@ -165,9 +212,9 @@ export default function Workspace() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Left Panel - Strategic Decisions */}
+      {/* Left Panel - Decision History */}
       <div className="w-72 glass border-r-2 border-white/20 p-4 overflow-auto">
-        <h3 className="font-semibold text-black mb-4 text-lg">Strategic Decisions</h3>
+        <h3 className="font-semibold text-black mb-4 text-lg">Decision History</h3>
         
         <div className="space-y-3 mb-4">
           <Input
@@ -182,32 +229,55 @@ export default function Workspace() {
           />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
+          {/* Live Analysis Button */}
           <div
-            className="p-3 rounded-lg cursor-pointer transition-all duration-300 hover-lift group glass-card border-green-500/40 shadow-lg"
+            className={`p-3 rounded-lg cursor-pointer transition-all duration-300 hover-lift group glass-card ${!selectedDecisionId ? 'border-green-500/40 shadow-lg bg-green-50/50' : 'border-white/20 hover:border-green-500/20'}`}
+            onClick={() => setSelectedDecisionId(null)}
           >
-            <h4 className="font-medium text-black group-hover:text-gray-800 transition-colors mb-2 text-sm">Live Analysis</h4>
-            <div className="flex gap-2 mb-2">
-              <Badge className="bg-green-100 text-green-800 text-xs">AI Powered</Badge>
-              <Badge className="bg-blue-100 text-blue-800 text-xs">Real-time</Badge>
-            </div>
-            <p className="text-xs text-gray-600">Connect to Four Pillars AI backend</p>
-          </div>
-          
-          <div className="p-3 rounded-lg glass-card border-2 border-white/20">
-            <h4 className="font-medium text-black mb-2 text-sm">Current Analysis Session</h4>
-            <div className="flex gap-2 mb-2">
+            <h4 className="font-medium text-black group-hover:text-gray-800 transition-colors mb-1 text-sm">🔴 Live Analysis</h4>
+            <div className="flex gap-2 mb-1">
+              <Badge className="bg-green-100 text-green-800 text-xs">Real-time</Badge>
               <Badge variant="outline" className="text-xs border-gray-500/30 text-gray-600">
-                Active Agents: {activeAgentsCount}
-              </Badge>
-              <Badge variant="outline" className="text-xs border-gray-500/30 text-gray-600">
-                Confidence: {overallConfidence}%
+                {agents.filter(a => a.status === 'active').length} agents
               </Badge>
             </div>
-            <div className="text-xs text-gray-600">
-              Real-time agent performance data
-            </div>
+            <p className="text-xs text-gray-500">Current session results</p>
           </div>
+
+          {/* Decision History Items */}
+          {filteredDecisions.length > 0 && (
+            <div className="pt-2 border-t border-gray-200/30">
+              <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Past Decisions ({filteredDecisions.length})</p>
+              {filteredDecisions.map((decision) => {
+                const isSelected = selectedDecisionId === decision.id;
+                const priorityColor = { high: 'text-red-600 bg-red-50', medium: 'text-blue-600 bg-blue-50', low: 'text-gray-600 bg-gray-50' }[decision.priority];
+                const agentCount = Object.keys(decision.agentResults || {}).length;
+                return (
+                  <div
+                    key={decision.id}
+                    className={`p-3 rounded-lg cursor-pointer transition-all duration-200 mb-2 ${isSelected ? 'glass-card border-blue-500/40 shadow-md bg-blue-50/30' : 'glass-card border-white/20 hover:border-blue-500/20 hover:bg-blue-50/10'}`}
+                    onClick={() => setSelectedDecisionId(decision.id)}
+                  >
+                    <h4 className="font-medium text-black text-sm leading-tight mb-1 line-clamp-2">{decision.title}</h4>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge className={`text-xs px-1.5 py-0 ${priorityColor}`}>{decision.priority}</Badge>
+                      <span className="text-xs text-gray-500">{agentCount} agents</span>
+                      <span className="text-xs font-medium text-green-700">{decision.confidence}%</span>
+                    </div>
+                    <p className="text-xs text-gray-400">{new Date(decision.createdAt).toLocaleDateString()} {new Date(decision.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {filteredDecisions.length === 0 && searchTerm && (
+            <p className="text-xs text-gray-400 text-center py-3">No decisions match "{searchTerm}"</p>
+          )}
+          {decisions.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-3">No decisions yet. Run an analysis to create one.</p>
+          )}
         </div>
       </div>
 
@@ -216,24 +286,46 @@ export default function Workspace() {
         <div className="p-4 border-b border-white/20">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="text-2xl font-bold text-black mb-1">AI Analysis Workspace</h2>
-              <p className="text-gray-600 text-sm">Collaborative intelligence from your AI agent ecosystem</p>
+              <h2 className="text-2xl font-bold text-black mb-1">
+                {selectedDecision ? selectedDecision.title : 'AI Analysis Workspace'}
+              </h2>
+              <p className="text-gray-600 text-sm">
+                {selectedDecision
+                  ? `Decision from ${new Date(selectedDecision.createdAt).toLocaleString()} · ${Object.keys(selectedDecision.agentResults).length} agents · ${selectedDecision.confidence}% confidence`
+                  : 'Collaborative intelligence from your AI agent ecosystem'
+                }
+              </p>
             </div>
-            <Button 
-              onClick={handleNavigateToDashboard}
-              className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
-            >
-              <span className="text-lg">📊</span>
-              View Dashboard
-            </Button>
+            <div className="flex gap-2">
+              {selectedDecision && (
+                <Button
+                  onClick={() => setSelectedDecisionId(null)}
+                  className="bg-gray-500 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <span className="text-lg">🔴</span>
+                  Back to Live
+                </Button>
+              )}
+              <Button 
+                onClick={handleNavigateToDashboard}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2"
+              >
+                <span className="text-lg">📊</span>
+                View Dashboard
+              </Button>
+            </div>
           </div>
 
           <div className="mb-3">
-            <h3 className="text-lg font-semibold text-black mb-1">AI Agent Analysis Workspace</h3>
+            <h3 className="text-lg font-semibold text-black mb-1">
+              {selectedDecision ? 'Decision Analysis Results' : 'AI Agent Analysis Workspace'}
+            </h3>
             <p className="text-xs text-gray-600">
-              {activeAgentsCount > 0 
-                ? `Real-time analysis powered by Four Pillars AI agents - ${activeAgentsCount} agents active`
-                : 'Enter a business scenario below and run AI analysis'
+              {selectedDecision
+                ? `Viewing saved analysis for: "${selectedDecision.scenario.substring(0, 100)}${selectedDecision.scenario.length > 100 ? '...' : ''}"`
+                : activeAgentsCount > 0 
+                  ? `Real-time analysis powered by Four Pillars AI agents - ${activeAgentsCount} agents active`
+                  : 'Enter a business scenario below and run AI analysis'
               }
             </p>
           </div>
@@ -297,7 +389,7 @@ export default function Workspace() {
             </TabsList>
 
             <TabsContent value="analysis" className="h-full">
-              {agents.filter(agent => agent.status === 'active' || latestAnalysisData[agent.id]).length === 0 ? (
+              {Object.keys(displayAgentData).length === 0 ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-center text-gray-500">
                     <span className="text-4xl block mb-3">🔍</span>
@@ -307,23 +399,26 @@ export default function Workspace() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {agents.filter(agent => latestAnalysisData[agent.id]).map((agent) => {
-                    const data = latestAnalysisData[agent.id];
+                  {Object.entries(displayAgentData).map(([agentId, data]) => {
                     const agentConfig = {
                       finance: { title: 'Financial Analysis', icon: '💰', border: 'border-green-300 bg-green-50/50' },
                       risk: { title: 'Risk Assessment', icon: '🛡️', border: 'border-red-300 bg-red-50/50' },
                       compliance: { title: 'Compliance Review', icon: '⚖️', border: 'border-blue-300 bg-blue-50/50' },
                       market: { title: 'Market Intelligence', icon: '📈', border: 'border-purple-300 bg-purple-50/50' },
-                    }[agent.id] || { title: agent.name, icon: '📊', border: 'border-gray-300 bg-gray-50/50' };
+                    }[agentId] || { title: agentId, icon: '📊', border: 'border-gray-300 bg-gray-50/50' };
+
+                    const confidence = typeof data.confidence === 'number'
+                      ? (data.confidence <= 1 ? Math.round(data.confidence * 100) : Math.round(data.confidence))
+                      : 0;
 
                     return (
-                      <Card key={agent.id} className={`glass-card interactive-border ${agentConfig.border}`}>
+                      <Card key={agentId} className={`glass-card interactive-border ${agentConfig.border}`}>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-black text-lg flex items-center gap-2">
                             <span className="text-2xl">{agentConfig.icon}</span>
                             {agentConfig.title}
-                            <Badge className={`ml-auto ${(agent.performanceScore || 0) >= 80 ? 'bg-green-100 text-green-800' : (agent.performanceScore || 0) >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                              {agent.performanceScore || 0}%
+                            <Badge className={`ml-auto ${confidence >= 80 ? 'bg-green-100 text-green-800' : confidence >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                              {confidence}%
                             </Badge>
                           </CardTitle>
                           {data.model && (

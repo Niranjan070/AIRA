@@ -23,9 +23,10 @@ const statusStyles = {
 
 interface DecisionTableProps {
   decisions: Decision[];
+  onDecisionClick?: (decisionId: string) => void;
 }
 
-export function DecisionTable({ decisions }: DecisionTableProps) {
+export function DecisionTable({ decisions, onDecisionClick }: DecisionTableProps) {
   return (
     <div className="glass-card p-4 rounded-xl">
       <Table>
@@ -43,6 +44,7 @@ export function DecisionTable({ decisions }: DecisionTableProps) {
             <TableRow 
               key={decision.id} 
               className="hover:bg-gray-50/50 border-gray-200/50 transition-all duration-300 cursor-pointer group"
+              onClick={() => onDecisionClick?.(decision.id)}
             >
               <TableCell className="font-medium text-black group-hover:text-gray-800 transition-colors">
                 {decision.title}
